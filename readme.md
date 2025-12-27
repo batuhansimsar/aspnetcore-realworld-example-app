@@ -56,3 +56,46 @@ The above might work for Docker on Windows
 ## GitHub Actions build
 
 ![Build and Test](https://github.com/gothinkster/aspnetcore-realworld-example-app/workflows/Build%20and%20Test/badge.svg)
+
+---
+
+## Recent Improvements
+
+The following enhancements have been added to improve performance, security, and observability:
+
+### 🚀 Cursor-Based Pagination
+
+- Implemented cursor-based pagination for the Articles endpoint, replacing traditional offset-based pagination for better performance with large datasets
+- Uses `AsNoTracking()` to improve query performance and prevent unnecessary database connections from being held open
+- Response now includes `NextCursor` and `HasMore` fields for seamless infinite scrolling support
+- Backward compatible: offset-based pagination still works for existing clients
+
+**Usage:**
+```
+GET /articles?limit=10
+→ Response: { articles: [...], nextCursor: "abc123", hasMore: true }
+
+GET /articles?cursor=abc123
+→ Returns the next page of results
+```
+
+### 🛡️ Rate Limiting (Brute Force Protection)
+
+- Added `AddRateLimiter()` with two distinct policies using the Fixed Window algorithm:
+  - **"general"**: 100 requests per minute per IP for all API endpoints
+  - **"login"**: 5 requests per minute per IP for the login endpoint (brute force protection)
+- Returns `429 Too Many Requests` when the limit is exceeded
+- Applied `[EnableRateLimiting("login")]` attribute to the login endpoint
+
+### 📊 Structured Logging with Serilog
+
+- Added `RequestLoggingMiddleware` for comprehensive HTTP request logging including method, path, status code, and response time
+- Configured rolling file output to `logs/conduit-{date}.log`
+- Automatic log retention: logs older than 30 days are automatically deleted
+- Added `Serilog.Sinks.File` NuGet package (version 6.0.0) for file-based logging
+- Log level overrides for Microsoft and Entity Framework Core namespaces to reduce noise
+
+### ⚙️ Other Changes
+
+- Updated SDK version to `8.0.100` in `global.json` for compatibility
+- Added package version to central package management (`Directory.Packages.props`)
