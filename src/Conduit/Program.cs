@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.RateLimiting;
 using Conduit;
 using Conduit.Infrastructure;
 using Conduit.Infrastructure.Errors;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -107,13 +109,47 @@ builder.Services.AddConduit();
 
 builder.Services.AddJwt();
 
+// Configure Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    
+    // General rate limit: 100 requests per minute per IP
+    options.AddPolicy("general", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+    
+    // Login rate limit: 5 requests per minute per IP (brute force protection)
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
 
 app.Services.GetRequiredService<ILoggerFactory>().AddSerilogLogging();
 
+app.UseMiddleware<RequestLoggingMiddleware>();
+
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
 app.UseCors(x => x.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseMvc();
