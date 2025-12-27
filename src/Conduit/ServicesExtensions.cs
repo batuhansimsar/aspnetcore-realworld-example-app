@@ -101,12 +101,22 @@ public static class ServicesExtensions
     {
         // Attach the sink to the logger configuration
         var log = new LoggerConfiguration()
-            .MinimumLevel.Verbose()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            //just for local debug
+            .Enrich.WithProperty("Application", "Conduit")
+            // Console output with colored theme
             .WriteTo.Console(
-                outputTemplate: "{Timestamp:HH:mm:ss} [{Level}] {SourceContext} {Message}{NewLine}{Exception}",
+                outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}",
                 theme: AnsiConsoleTheme.Code
+            )
+            // Rolling file output
+            .WriteTo.File(
+                path: "logs/conduit-.log",
+                rollingInterval: RollingInterval.Day,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}",
+                retainedFileCountLimit: 30
             )
             .CreateLogger();
 
